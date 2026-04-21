@@ -1,10 +1,10 @@
 modLoader="javafml"
 loaderVersion="[4,)"
-license="MIT"
+license="All Rights Reserved"
 
 [[mods]]
 modId="imageframe"
-version="1.0.0"
+version="1.0.0b"
 displayName="Image Frame"
 logoFile="icon.png"
 description='''Place images from URLs on your walls using Shift+RMB on any item frame or painting.'''
