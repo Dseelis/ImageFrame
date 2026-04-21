@@ -6,10 +6,9 @@ import com.dseel.imageframe.entity.ImageFrameEntity;
 import com.dseel.imageframe.screen.ImageFrameScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.Direction;
 import net.minecraft.world.entity.decoration.ItemFrame;
-import net.minecraft.world.entity.decoration.Painting;
-import net.minecraft.world.phys.*;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -37,28 +36,28 @@ public class ClientEventHandler {
         }
 
         if (entityHit.getEntity() instanceof ItemFrame frame) {
-            openSpawnScreen(frame.getDirection(), frame.position());
-            event.setCanceled(true);
-        } else if (entityHit.getEntity() instanceof Painting painting) {
-            openSpawnScreen(painting.getDirection(), painting.position());
+            openSpawnScreen(frame);
             event.setCanceled(true);
         }
     }
 
-    private static void openSpawnScreen(Direction facing, Vec3 pos) {
+    private static void openSpawnScreen(ItemFrame frame) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
 
         ImageFrameEntity preview = new ImageFrameEntity(
-                ModEntityTypes.IMAGE_FRAME.get(), mc.level);
-
-        preview.setPos(
-                Math.floor(pos.x) + 0.5,
-                Math.floor(pos.y) + 0.5,
-                Math.floor(pos.z) + 0.5
+                ModEntityTypes.IMAGE_FRAME.get(), mc.level
         );
 
-        preview.setFacingDirection(facing);
+        preview.setPos(
+                frame.getX(),
+                frame.getY(),
+                frame.getZ()
+        );
+
+        preview.setFacingDirection(frame.getDirection());
+
+        preview.getPersistentData().putInt("FrameId", frame.getId());
 
         mc.setScreen(new ImageFrameScreen(preview));
     }

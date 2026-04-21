@@ -49,7 +49,6 @@ public class ImageFrameScreen extends Screen {
                 Component.translatable("gui.imageframe.url"));
 
         urlBox.setResponder(text -> previewTexture = null);
-
         urlBox.setMaxLength(512);
         urlBox.setValue(entity.getImageUrl());
         urlBox.setHint(Component.literal("https://example.com/image.png"));
@@ -94,21 +93,8 @@ public class ImageFrameScreen extends Screen {
         String url = urlBox.getValue().trim();
 
         if (!url.isEmpty()) {
-
-            var player = this.minecraft.player;
-            if (player == null) return;
-
-            double x = player.getX();
-            double y = player.getY();
-            double z = player.getZ();
-
-            int facing = player.getDirection().get3DDataValue();
-
             PacketDistributor.sendToServer(new SpawnImageFramePacket(
-                    x,
-                    y,
-                    z,
-                    facing,
+                    entity.getPersistentData().getInt("FrameId"),
                     url,
                     selectedWidth,
                     selectedHeight
