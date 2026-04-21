@@ -2,24 +2,22 @@ package com.dseel.imageframe.network;
 
 import com.dseel.imageframe.common.ModEntityTypes;
 import com.dseel.imageframe.entity.ImageFrameEntity;
-import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.ItemFrame;
-import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-import java.util.Comparator;
-import java.util.List;
-
-public record SpawnImageFramePacket(double px, double py, double pz,
-                                    int facingIdx, String url,
-                                    int width, int height)
-        implements CustomPacketPayload {
+public record SpawnImageFramePacket(
+        int frameId,
+        String url,
+        int width,
+        int height
+) implements CustomPacketPayload {
 
     public static final ResourceLocation ID =
             ResourceLocation.fromNamespaceAndPath("imageframe", "spawn_image_frame");
@@ -29,18 +27,16 @@ public record SpawnImageFramePacket(double px, double py, double pz,
     public static final StreamCodec<FriendlyByteBuf, SpawnImageFramePacket> CODEC =
             StreamCodec.of(
                     (buf, pkt) -> {
-                        buf.writeDouble(pkt.px());
-                        buf.writeDouble(pkt.py());
-                        buf.writeDouble(pkt.pz());
-                        buf.writeInt(pkt.facingIdx());
+                        buf.writeInt(pkt.frameId());
                         buf.writeUtf(pkt.url(), 512);
                         buf.writeInt(pkt.width());
                         buf.writeInt(pkt.height());
                     },
                     buf -> new SpawnImageFramePacket(
-                            buf.readDouble(), buf.readDouble(), buf.readDouble(),
-                            buf.readInt(), buf.readUtf(512),
-                            buf.readInt(), buf.readInt()
+                            buf.readInt(),
+                            buf.readUtf(512),
+                            buf.readInt(),
+                            buf.readInt()
                     )
             );
 
@@ -57,36 +53,33 @@ public record SpawnImageFramePacket(double px, double py, double pz,
             String url = pkt.url().trim();
             if (url.isEmpty()) return;
 
-            List<ItemFrame> frames = level.getEntitiesOfClass(
-                    ItemFrame.class,
-                    new AABB(
-                            pkt.px() - 2, pkt.py() - 2, pkt.pz() - 2,
-                            pkt.px() + 2, pkt.py() + 2, pkt.pz() + 2
-                    )
-            );
+            // 💥 берём РОВНО ту рамку
+            Entity entity = level.getEntity(pkt.frameId());
+            if (!(entity instanceof ItemFrame itemFrame)) return;
 
-            if (frames.isEmpty()) return;
+            // ❌ уже используется
+            if (itemFrame.isInvisible()) return;
 
-            ItemFrame itemFrame = frames.stream()
-                    .min(Comparator.comparingDouble(f ->
-                            f.distanceToSqr(pkt.px(), pkt.py(), pkt.pz())
-                    ))
-                    .orElse(null);
+            // ❌ уже есть картинка
+            boolean hasImage = !level.getEntitiesOfClass(
+                    ImageFrameEntity.class,
+                    itemFrame.getBoundingBox().inflate(0.1)
+            ).isEmpty();
 
-            if (itemFrame == null) return;
+            if (hasImage) return;
 
+            // 🔥 создаём картинку
             ImageFrameEntity img = new ImageFrameEntity(
                     ModEntityTypes.IMAGE_FRAME.get(), level
             );
-
-            Direction dir = itemFrame.getDirection();
 
             img.setPos(
                     itemFrame.getX(),
                     itemFrame.getY(),
                     itemFrame.getZ()
             );
-            img.setFacingDirection(dir);
+
+            img.setFacingDirection(itemFrame.getDirection());
 
             img.setImageUrl(url);
             img.setWidth(pkt.width());
@@ -95,6 +88,7 @@ public record SpawnImageFramePacket(double px, double py, double pz,
 
             level.addFreshEntity(img);
 
+            // 👻 скрываем рамку
             itemFrame.setInvisible(true);
         });
     }

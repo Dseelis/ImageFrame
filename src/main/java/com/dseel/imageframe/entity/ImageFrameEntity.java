@@ -38,12 +38,35 @@ public class ImageFrameEntity extends Entity {
     }
 
     @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+        super.onSyncedDataUpdated(key);
+        this.refreshDimensions(); // 💥 ВАЖНО
+    }
+
+    @Override
+    public net.minecraft.world.entity.EntityDimensions getDimensions(net.minecraft.world.entity.Pose pose) {
+        return net.minecraft.world.entity.EntityDimensions.scalable(
+                this.getWidth(),
+                this.getHeight()
+        );
+    }
+
+    @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
         this.setImageUrl(tag.getString("ImageUrl"));
         this.setWidth(tag.getInt("FrameWidth"));
         this.setHeight(tag.getInt("FrameHeight"));
         this.setFacingDirection(Direction.from3DDataValue(tag.getInt("FacingDir")));
         this.setStartTime(tag.getInt("StartTime")); // FIX
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (this.level().isClientSide) {
+            this.refreshDimensions();
+        }
     }
 
     @Override
