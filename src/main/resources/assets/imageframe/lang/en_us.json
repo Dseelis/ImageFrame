@@ -1,0 +1,10 @@
+{
+  "gui.imageframe.title": "Edit Image Frame",
+  "gui.imageframe.new_title": "Place Image Frame",
+  "gui.imageframe.url": "Image URL",
+  "gui.imageframe.url_label": "Image URL:",
+  "gui.imageframe.size_label": "Size (blocks):",
+  "gui.imageframe.confirm": "✔ Place",
+  "gui.imageframe.cancel": "Cancel",
+  "entity.imageframe.image_frame": "Image Frame"
+}
