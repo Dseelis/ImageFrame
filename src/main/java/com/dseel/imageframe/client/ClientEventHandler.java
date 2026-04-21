@@ -9,9 +9,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.decoration.Painting;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.*;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -30,8 +28,7 @@ public class ClientEventHandler {
         if (!player.isShiftKeyDown()) return;
 
         HitResult hit = mc.hitResult;
-        if (hit == null || hit.getType() != HitResult.Type.ENTITY) return;
-        EntityHitResult entityHit = (EntityHitResult) hit;
+        if (!(hit instanceof EntityHitResult entityHit)) return;
 
         if (entityHit.getEntity() instanceof ImageFrameEntity frame) {
             mc.setScreen(new ImageFrameScreen(frame));
@@ -54,8 +51,15 @@ public class ClientEventHandler {
 
         ImageFrameEntity preview = new ImageFrameEntity(
                 ModEntityTypes.IMAGE_FRAME.get(), mc.level);
-        preview.setPos(pos.x, pos.y, pos.z);
+
+        preview.setPos(
+                Math.floor(pos.x) + 0.5,
+                Math.floor(pos.y) + 0.5,
+                Math.floor(pos.z) + 0.5
+        );
+
         preview.setFacingDirection(facing);
 
+        mc.setScreen(new ImageFrameScreen(preview));
     }
 }

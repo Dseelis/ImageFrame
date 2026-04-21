@@ -19,6 +19,8 @@ public class ImageFrameEntity extends Entity {
             SynchedEntityData.defineId(ImageFrameEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> FACING_INT =
             SynchedEntityData.defineId(ImageFrameEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> START_TIME =
+            SynchedEntityData.defineId(ImageFrameEntity.class, EntityDataSerializers.INT);
 
     public ImageFrameEntity(EntityType<?> type, Level level) {
         super(type, level);
@@ -32,6 +34,7 @@ public class ImageFrameEntity extends Entity {
         builder.define(WIDTH, 1);
         builder.define(HEIGHT, 1);
         builder.define(FACING_INT, Direction.NORTH.get3DDataValue());
+        builder.define(START_TIME, 0);
     }
 
     @Override
@@ -40,6 +43,7 @@ public class ImageFrameEntity extends Entity {
         this.setWidth(tag.getInt("FrameWidth"));
         this.setHeight(tag.getInt("FrameHeight"));
         this.setFacingDirection(Direction.from3DDataValue(tag.getInt("FacingDir")));
+        this.setStartTime(tag.getInt("StartTime")); // FIX
     }
 
     @Override
@@ -48,9 +52,8 @@ public class ImageFrameEntity extends Entity {
         tag.putInt("FrameWidth", this.getWidth());
         tag.putInt("FrameHeight", this.getHeight());
         tag.putInt("FacingDir", this.getFacingDirection().get3DDataValue());
+        tag.putInt("StartTime", this.getStartTime()); // FIX
     }
-
-    // --- Getters / Setters ---
 
     public String getImageUrl() {
         return this.entityData.get(IMAGE_URL);
@@ -62,6 +65,14 @@ public class ImageFrameEntity extends Entity {
 
     public int getWidth() {
         return this.entityData.get(WIDTH);
+    }
+
+    public int getStartTime() {
+        return this.entityData.get(START_TIME);
+    }
+
+    public void setStartTime(int t) {
+        this.entityData.set(START_TIME, t);
     }
 
     public void setWidth(int w) {

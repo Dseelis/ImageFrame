@@ -4,106 +4,193 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Map;
-import java.util.Set;
+import java.net.URLConnection;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ImageCache {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("imageframe");
+    private static final Map<String, ResourceLocation> CACHE = new HashMap<>();
+    private static final Map<String, List<ResourceLocation>> GIF_CACHE = new HashMap<>();
+    private static final Set<String> LOADING = new HashSet<>();
 
-    // url -> loaded ResourceLocation
-    private static final Map<String, ResourceLocation> CACHE = new ConcurrentHashMap<>();
-    private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
-    private static final Set<String> FAILED  = ConcurrentHashMap.newKeySet();
-
-    /**
-     * Returns cached texture location, or kicks off async download.
-     * Returns null if not yet loaded (caller should render a placeholder).
-     */
-    public static ResourceLocation getOrLoad(String url) {
+    public static ResourceLocation getTexture(String url, int time) {
         if (url == null || url.isEmpty()) return null;
-        if (FAILED.contains(url))         return null;
 
-        ResourceLocation cached = CACHE.get(url);
-        if (cached != null) return cached;
+        if (url.toLowerCase().endsWith(".gif")) {
+            List<ResourceLocation> frames = GIF_CACHE.get(url);
 
-        if (PENDING.add(url)) {   // add() returns false if already present
-            fetchAsync(url);
+            if (frames != null && !frames.isEmpty()) {
+                int tick = (int)(System.currentTimeMillis() / 100);
+                return frames.get(tick % frames.size());
+            }
+
+            loadGifAsync(url);
+            return null;
         }
+
+        if (CACHE.containsKey(url)) return CACHE.get(url);
+
+        loadImageAsync(url);
         return null;
     }
 
-    private static void fetchAsync(String url) {
-        CompletableFuture.supplyAsync(() -> {
-            HttpURLConnection conn = null;
+    private static void loadImageAsync(String url) {
+        if (LOADING.contains(url)) return;
+        LOADING.add(url);
+
+        CompletableFuture.runAsync(() -> {
             try {
-                conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(10_000);
-                conn.setReadTimeout(15_000);
-                conn.setRequestMethod("GET");
-                // Some servers block Java's default UA
-                conn.setRequestProperty("User-Agent", "Minecraft/ImageFrameMod");
-                conn.setInstanceFollowRedirects(true);
+                InputStream stream = openStream(url);
+                BufferedImage buffered = ImageIO.read(stream);
+                if (buffered == null) return;
 
-                int status = conn.getResponseCode();
-                if (status != 200) {
-                    throw new RuntimeException("HTTP " + status);
+                NativeImage image = new NativeImage(
+                        buffered.getWidth(),
+                        buffered.getHeight(),
+                        true
+                );
+
+                for (int x = 0; x < buffered.getWidth(); x++) {
+                    for (int y = 0; y < buffered.getHeight(); y++) {
+                        int argb = buffered.getRGB(x, y);
+
+                        int a = (argb >> 24) & 255;
+                        int r = (argb >> 16) & 255;
+                        int g = (argb >> 8) & 255;
+                        int b = argb & 255;
+
+                        int abgr = (a << 24) | (b << 16) | (g << 8) | r;
+                        image.setPixelRGBA(x, y, abgr);
+                    }
                 }
 
-                try (InputStream is = conn.getInputStream()) {
-                    return NativeImage.read(is);
-                }
-            } catch (Exception e) {
-                LOGGER.warn("[ImageFrame] Failed to load '{}': {}", url, e.getMessage());
-                return null;
-            } finally {
-                if (conn != null) conn.disconnect();
-            }
-        }).thenAccept(image -> {
-            PENDING.remove(url);
-            if (image == null) {
-                FAILED.add(url);
-                return;
-            }
-            // Texture registration MUST happen on the main render thread
-            Minecraft.getInstance().execute(() -> {
-                try {
+                Minecraft.getInstance().execute(() -> {
                     DynamicTexture texture = new DynamicTexture(image);
-                    String key = "imageframe_" + Math.abs(url.hashCode());
-                    ResourceLocation loc = ResourceLocation.fromNamespaceAndPath("imageframe", key);
+                    texture.setFilter(false, false);
+
+                    ResourceLocation loc = ResourceLocation.fromNamespaceAndPath(
+                            "imageframe",
+                            "img_" + Math.abs(url.hashCode())
+                    );
+
                     Minecraft.getInstance().getTextureManager().register(loc, texture);
                     CACHE.put(url, loc);
-                    LOGGER.info("[ImageFrame] Loaded texture for '{}'", url);
-                } catch (Exception e) {
-                    LOGGER.warn("[ImageFrame] Failed to register texture for '{}': {}", url, e.getMessage());
-                    FAILED.add(url);
-                }
-            });
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         });
     }
 
-    /** Remove a single URL from the cache and release its GPU texture. */
-    public static void evict(String url) {
-        ResourceLocation loc = CACHE.remove(url);
-        if (loc != null) {
-            Minecraft.getInstance().execute(() ->
-                    Minecraft.getInstance().getTextureManager().release(loc));
-        }
-        FAILED.remove(url);
-        PENDING.remove(url);
+    private static void loadGifAsync(String url) {
+        if (LOADING.contains(url)) return;
+        LOADING.add(url);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                InputStream stream = openStream(url);
+                ImageInputStream imageStream = ImageIO.createImageInputStream(stream);
+
+                Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+                if (!readers.hasNext()) return;
+
+                ImageReader reader = readers.next();
+                reader.setInput(imageStream);
+
+                List<BufferedImage> framesRaw = new ArrayList<>();
+                BufferedImage master = null;
+
+                for (int i = 0; ; i++) {
+                    try {
+                        BufferedImage frame = reader.read(i);
+
+                        if (master == null) {
+                            master = new BufferedImage(
+                                    frame.getWidth(),
+                                    frame.getHeight(),
+                                    BufferedImage.TYPE_INT_ARGB
+                            );
+                        }
+
+                        Graphics2D g = master.createGraphics();
+                        g.drawImage(frame, 0, 0, null);
+                        g.dispose();
+
+                        BufferedImage copy = new BufferedImage(
+                                master.getWidth(),
+                                master.getHeight(),
+                                BufferedImage.TYPE_INT_ARGB
+                        );
+
+                        copy.getGraphics().drawImage(master, 0, 0, null);
+                        framesRaw.add(copy);
+
+                    } catch (IndexOutOfBoundsException e) {
+                        break;
+                    }
+                }
+
+                Minecraft.getInstance().execute(() -> {
+                    List<ResourceLocation> frames = new ArrayList<>();
+
+                    for (int j = 0; j < framesRaw.size(); j++) {
+                        BufferedImage buffered = framesRaw.get(j);
+
+                        NativeImage img = new NativeImage(
+                                buffered.getWidth(),
+                                buffered.getHeight(),
+                                true
+                        );
+
+                        for (int x = 0; x < buffered.getWidth(); x++) {
+                            for (int y = 0; y < buffered.getHeight(); y++) {
+
+                                int argb = buffered.getRGB(x, y);
+
+                                int a = (argb >> 24) & 255;
+                                int r = (argb >> 16) & 255;
+                                int g = (argb >> 8) & 255;
+                                int b = argb & 255;
+
+                                int abgr = (a << 24) | (b << 16) | (g << 8) | r;
+                                img.setPixelRGBA(x, y, abgr);
+                            }
+                        }
+
+                        DynamicTexture texture = new DynamicTexture(img);
+                        texture.setFilter(false, false);
+
+                        ResourceLocation loc = ResourceLocation.fromNamespaceAndPath(
+                                "imageframe",
+                                "gif_" + Math.abs(url.hashCode()) + "_" + j
+                        );
+
+                        Minecraft.getInstance().getTextureManager().register(loc, texture);
+                        frames.add(loc);
+                    }
+
+                    GIF_CACHE.put(url, frames);
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 
-    public static void clearAll() {
-        for (String url : CACHE.keySet()) evict(url);
-        FAILED.clear();
-        PENDING.clear();
+    private static InputStream openStream(String url) throws Exception {
+        URLConnection conn = new URL(url).openConnection();
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        conn.setRequestProperty("Accept", "image/*");
+        return conn.getInputStream();
     }
 }

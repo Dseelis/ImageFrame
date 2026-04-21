@@ -12,6 +12,5 @@ public class ImageFrameMod {
     public ImageFrameMod(IEventBus modEventBus) {
         ModEntityTypes.ENTITY_TYPES.register(modEventBus);
         // Network packets are registered via @SubscribeEvent in ModNetwork
-        // (no manual register() call needed)
     }
 }

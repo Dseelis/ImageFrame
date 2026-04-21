@@ -13,6 +13,7 @@ import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
+import java.util.Comparator;
 import java.util.List;
 
 public record SpawnImageFramePacket(double px, double py, double pz,
@@ -23,8 +24,7 @@ public record SpawnImageFramePacket(double px, double py, double pz,
     public static final ResourceLocation ID =
             ResourceLocation.fromNamespaceAndPath("imageframe", "spawn_image_frame");
 
-    public static final CustomPacketPayload.Type<SpawnImageFramePacket> TYPE =
-            new CustomPacketPayload.Type<>(ID);
+    public static final Type<SpawnImageFramePacket> TYPE = new Type<>(ID);
 
     public static final StreamCodec<FriendlyByteBuf, SpawnImageFramePacket> CODEC =
             StreamCodec.of(
@@ -55,30 +55,47 @@ public record SpawnImageFramePacket(double px, double py, double pz,
             ServerLevel level = player.serverLevel();
 
             String url = pkt.url().trim();
-            if (url.isEmpty() || (!url.startsWith("http://") && !url.startsWith("https://"))) {
-                return;
-            }
+            if (url.isEmpty()) return;
 
-            Direction facing = Direction.from3DDataValue(pkt.facingIdx());
-
-            ImageFrameEntity frame = new ImageFrameEntity(
-                    ModEntityTypes.IMAGE_FRAME.get(), level);
-            frame.setPos(pkt.px(), pkt.py(), pkt.pz());
-            frame.setFacingDirection(facing);
-            frame.setImageUrl(url);
-            frame.setWidth(pkt.width());
-            frame.setHeight(pkt.height());
-            level.addFreshEntity(frame);
-
-            // Скрываем ItemFrame который находится в том же месте
-            List<ItemFrame> nearby = level.getEntitiesOfClass(
+            List<ItemFrame> frames = level.getEntitiesOfClass(
                     ItemFrame.class,
-                    new AABB(pkt.px() - 0.6, pkt.py() - 0.6, pkt.pz() - 0.6,
-                             pkt.px() + 0.6, pkt.py() + 0.6, pkt.pz() + 0.6)
+                    new AABB(
+                            pkt.px() - 2, pkt.py() - 2, pkt.pz() - 2,
+                            pkt.px() + 2, pkt.py() + 2, pkt.pz() + 2
+                    )
             );
-            for (ItemFrame itemFrame : nearby) {
-                itemFrame.setInvisible(true);
-            }
+
+            if (frames.isEmpty()) return;
+
+            ItemFrame itemFrame = frames.stream()
+                    .min(Comparator.comparingDouble(f ->
+                            f.distanceToSqr(pkt.px(), pkt.py(), pkt.pz())
+                    ))
+                    .orElse(null);
+
+            if (itemFrame == null) return;
+
+            ImageFrameEntity img = new ImageFrameEntity(
+                    ModEntityTypes.IMAGE_FRAME.get(), level
+            );
+
+            Direction dir = itemFrame.getDirection();
+
+            img.setPos(
+                    itemFrame.getX(),
+                    itemFrame.getY(),
+                    itemFrame.getZ()
+            );
+            img.setFacingDirection(dir);
+
+            img.setImageUrl(url);
+            img.setWidth(pkt.width());
+            img.setHeight(pkt.height());
+            img.setStartTime((int)(System.currentTimeMillis() / 50));
+
+            level.addFreshEntity(img);
+
+            itemFrame.setInvisible(true);
         });
     }
 }

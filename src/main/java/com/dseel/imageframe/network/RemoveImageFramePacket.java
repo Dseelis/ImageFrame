@@ -44,7 +44,6 @@ public record RemoveImageFramePacket(int entityId) implements CustomPacketPayloa
                 double py = frame.getY();
                 double pz = frame.getZ();
 
-                // Возвращаем видимость соседним ItemFrame
                 List<ItemFrame> nearby = level.getEntitiesOfClass(
                         ItemFrame.class,
                         new AABB(px - 0.6, py - 0.6, pz - 0.6,
