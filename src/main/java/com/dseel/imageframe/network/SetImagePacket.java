@@ -10,7 +10,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-public record SetImagePacket(int entityId, String url, int width, int height)
+public record SetImagePacket(int entityId, String url, int width, int height, boolean mirrored)
         implements CustomPacketPayload {
 
     public static final ResourceLocation ID =
@@ -26,12 +26,14 @@ public record SetImagePacket(int entityId, String url, int width, int height)
                         buf.writeUtf(pkt.url(), 512);
                         buf.writeInt(pkt.width());
                         buf.writeInt(pkt.height());
+                        buf.writeBoolean(pkt.mirrored());
                     },
                     buf -> new SetImagePacket(
                             buf.readInt(),
                             buf.readUtf(512),
                             buf.readInt(),
-                            buf.readInt()
+                            buf.readInt(),
+                            buf.readBoolean()
                     )
             );
 
@@ -53,6 +55,7 @@ public record SetImagePacket(int entityId, String url, int width, int height)
                     frame.setImageUrl(url);
                     frame.setWidth(pkt.width());
                     frame.setHeight(pkt.height());
+                    frame.setMirrored(pkt.mirrored());
                 }
             }
         });

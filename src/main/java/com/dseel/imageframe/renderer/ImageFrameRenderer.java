@@ -28,8 +28,8 @@ public class ImageFrameRenderer extends EntityRenderer<ImageFrameEntity> {
         String url = entity.getImageUrl();
         if (url == null || url.isEmpty()) return;
 
-        ResourceLocation tex = ImageCache.getTexture(url, entity.getStartTime());
-        if (tex == null) tex = MissingTextureAtlasSprite.getLocation();
+        ImageCache.TextureData data = ImageCache.getTexture(url, entity.getStartTime());
+        ResourceLocation tex = (data != null) ? data.location() : MissingTextureAtlasSprite.getLocation();
 
         pose.pushPose();
 
@@ -53,32 +53,38 @@ public class ImageFrameRenderer extends EntityRenderer<ImageFrameEntity> {
         float hw = w / 2f;
         float hh = h / 2f;
 
+        float u0 = 0, u1 = 1;
+        if (entity.isMirrored()) {
+            u0 = 1;
+            u1 = 0;
+        }
+
         int lightVal = LightTexture.FULL_BRIGHT;
 
         vc.addVertex(mat, -hw,  hh, 0)
                 .setColor(255, 255, 255, 255)
-                .setUv(0, 0)
+                .setUv(u0, 0)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(lightVal)
                 .setNormal(0, 0, 1);
 
         vc.addVertex(mat, -hw, -hh, 0)
                 .setColor(255, 255, 255, 255)
-                .setUv(0, 1)
+                .setUv(u0, 1)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(lightVal)
                 .setNormal(0, 0, 1);
 
         vc.addVertex(mat,  hw, -hh, 0)
                 .setColor(255, 255, 255, 255)
-                .setUv(1, 1)
+                .setUv(u1, 1)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(lightVal)
                 .setNormal(0, 0, 1);
 
         vc.addVertex(mat,  hw,  hh, 0)
                 .setColor(255, 255, 255, 255)
-                .setUv(1, 0)
+                .setUv(u1, 0)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(lightVal)
                 .setNormal(0, 0, 1);
