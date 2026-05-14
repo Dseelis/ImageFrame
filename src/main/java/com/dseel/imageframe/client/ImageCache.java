@@ -17,15 +17,17 @@ import java.util.concurrent.CompletableFuture;
 
 public class ImageCache {
 
-    private static final Map<String, ResourceLocation> CACHE = new HashMap<>();
-    private static final Map<String, List<ResourceLocation>> GIF_CACHE = new HashMap<>();
+    public record TextureData(ResourceLocation location, int width, int height) {}
+
+    private static final Map<String, TextureData> CACHE = new HashMap<>();
+    private static final Map<String, List<TextureData>> GIF_CACHE = new HashMap<>();
     private static final Set<String> LOADING = new HashSet<>();
 
-    public static ResourceLocation getTexture(String url, int time) {
+    public static TextureData getTexture(String url, int time) {
         if (url == null || url.isEmpty()) return null;
 
         if (url.toLowerCase().endsWith(".gif")) {
-            List<ResourceLocation> frames = GIF_CACHE.get(url);
+            List<TextureData> frames = GIF_CACHE.get(url);
 
             if (frames != null && !frames.isEmpty()) {
                 int tick = (int)(System.currentTimeMillis() / 100);
@@ -52,14 +54,13 @@ public class ImageCache {
                 BufferedImage buffered = ImageIO.read(stream);
                 if (buffered == null) return;
 
-                NativeImage image = new NativeImage(
-                        buffered.getWidth(),
-                        buffered.getHeight(),
-                        true
-                );
+                int width = buffered.getWidth();
+                int height = buffered.getHeight();
 
-                for (int x = 0; x < buffered.getWidth(); x++) {
-                    for (int y = 0; y < buffered.getHeight(); y++) {
+                NativeImage image = new NativeImage(width, height, true);
+
+                for (int x = 0; x < width; x++) {
+                    for (int y = 0; y < height; y++) {
                         int argb = buffered.getRGB(x, y);
 
                         int a = (argb >> 24) & 255;
@@ -82,7 +83,7 @@ public class ImageCache {
                     );
 
                     Minecraft.getInstance().getTextureManager().register(loc, texture);
-                    CACHE.put(url, loc);
+                    CACHE.put(url, new TextureData(loc, width, height));
                 });
 
             } catch (Exception e) {
@@ -140,19 +141,17 @@ public class ImageCache {
                 }
 
                 Minecraft.getInstance().execute(() -> {
-                    List<ResourceLocation> frames = new ArrayList<>();
+                    List<TextureData> frames = new ArrayList<>();
 
                     for (int j = 0; j < framesRaw.size(); j++) {
                         BufferedImage buffered = framesRaw.get(j);
+                        int width = buffered.getWidth();
+                        int height = buffered.getHeight();
 
-                        NativeImage img = new NativeImage(
-                                buffered.getWidth(),
-                                buffered.getHeight(),
-                                true
-                        );
+                        NativeImage img = new NativeImage(width, height, true);
 
-                        for (int x = 0; x < buffered.getWidth(); x++) {
-                            for (int y = 0; y < buffered.getHeight(); y++) {
+                        for (int x = 0; x < width; x++) {
+                            for (int y = 0; y < height; y++) {
 
                                 int argb = buffered.getRGB(x, y);
 
@@ -175,7 +174,7 @@ public class ImageCache {
                         );
 
                         Minecraft.getInstance().getTextureManager().register(loc, texture);
-                        frames.add(loc);
+                        frames.add(new TextureData(loc, width, height));
                     }
 
                     GIF_CACHE.put(url, frames);

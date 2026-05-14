@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 import net.minecraft.core.Direction;
+import net.minecraft.world.phys.AABB;
 
 public class ImageFrameEntity extends Entity {
 
@@ -21,6 +22,8 @@ public class ImageFrameEntity extends Entity {
             SynchedEntityData.defineId(ImageFrameEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> START_TIME =
             SynchedEntityData.defineId(ImageFrameEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> MIRRORED =
+            SynchedEntityData.defineId(ImageFrameEntity.class, EntityDataSerializers.BOOLEAN);
 
     public ImageFrameEntity(EntityType<?> type, Level level) {
         super(type, level);
@@ -35,6 +38,7 @@ public class ImageFrameEntity extends Entity {
         builder.define(HEIGHT, 1);
         builder.define(FACING_INT, Direction.NORTH.get3DDataValue());
         builder.define(START_TIME, 0);
+        builder.define(MIRRORED, false);
     }
 
     @Override
@@ -52,12 +56,47 @@ public class ImageFrameEntity extends Entity {
     }
 
     @Override
+    public void refreshDimensions() {
+        super.refreshDimensions();
+        this.setBoundingBox(this.makeBoundingBox());
+    }
+
+    @Override
+    protected AABB makeBoundingBox() {
+        Direction dir = getFacingDirection();
+        double w = getWidth();
+        double h = getHeight();
+        double hw = w / 2.0;
+        double hh = h / 2.0;
+        double thickness = 0.03125; // 1/32 block
+
+        double x = getX();
+        double y = getY();
+        double z = getZ();
+
+        switch (dir) {
+            case NORTH:
+            case SOUTH:
+                return new AABB(x - hw, y - hh, z - thickness, x + hw, y + hh, z + thickness);
+            case EAST:
+            case WEST:
+                return new AABB(x - thickness, y - hh, z - hw, x + thickness, y + hh, z + hw);
+            case UP:
+            case DOWN:
+                return new AABB(x - hw, y - thickness, z - hh, x + hw, y + thickness, z + hh);
+            default:
+                return super.makeBoundingBox();
+        }
+    }
+
+    @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
         this.setImageUrl(tag.getString("ImageUrl"));
         this.setWidth(tag.getInt("FrameWidth"));
         this.setHeight(tag.getInt("FrameHeight"));
         this.setFacingDirection(Direction.from3DDataValue(tag.getInt("FacingDir")));
-        this.setStartTime(tag.getInt("StartTime")); // FIX
+        this.setStartTime(tag.getInt("StartTime"));
+        this.setMirrored(tag.getBoolean("Mirrored"));
     }
 
     @Override
@@ -75,7 +114,8 @@ public class ImageFrameEntity extends Entity {
         tag.putInt("FrameWidth", this.getWidth());
         tag.putInt("FrameHeight", this.getHeight());
         tag.putInt("FacingDir", this.getFacingDirection().get3DDataValue());
-        tag.putInt("StartTime", this.getStartTime()); // FIX
+        tag.putInt("StartTime", this.getStartTime());
+        tag.putBoolean("Mirrored", this.isMirrored());
     }
 
     public String getImageUrl() {
@@ -100,6 +140,7 @@ public class ImageFrameEntity extends Entity {
 
     public void setWidth(int w) {
         this.entityData.set(WIDTH, Math.max(1, Math.min(w, 8)));
+        this.refreshDimensions();
     }
 
     public int getHeight() {
@@ -108,6 +149,7 @@ public class ImageFrameEntity extends Entity {
 
     public void setHeight(int h) {
         this.entityData.set(HEIGHT, Math.max(1, Math.min(h, 8)));
+        this.refreshDimensions();
     }
 
     public Direction getFacingDirection() {
@@ -116,6 +158,15 @@ public class ImageFrameEntity extends Entity {
 
     public void setFacingDirection(Direction dir) {
         this.entityData.set(FACING_INT, dir.get3DDataValue());
+        this.refreshDimensions();
+    }
+
+    public boolean isMirrored() {
+        return this.entityData.get(MIRRORED);
+    }
+
+    public void setMirrored(boolean mirrored) {
+        this.entityData.set(MIRRORED, mirrored);
     }
 
     @Override

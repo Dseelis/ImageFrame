@@ -16,7 +16,8 @@ public record SpawnImageFramePacket(
         int frameId,
         String url,
         int width,
-        int height
+        int height,
+        boolean mirrored
 ) implements CustomPacketPayload {
 
     public static final ResourceLocation ID =
@@ -31,12 +32,14 @@ public record SpawnImageFramePacket(
                         buf.writeUtf(pkt.url(), 512);
                         buf.writeInt(pkt.width());
                         buf.writeInt(pkt.height());
+                        buf.writeBoolean(pkt.mirrored());
                     },
                     buf -> new SpawnImageFramePacket(
                             buf.readInt(),
                             buf.readUtf(512),
                             buf.readInt(),
-                            buf.readInt()
+                            buf.readInt(),
+                            buf.readBoolean()
                     )
             );
 
@@ -84,6 +87,7 @@ public record SpawnImageFramePacket(
             img.setImageUrl(url);
             img.setWidth(pkt.width());
             img.setHeight(pkt.height());
+            img.setMirrored(pkt.mirrored());
             img.setStartTime((int)(System.currentTimeMillis() / 50));
 
             level.addFreshEntity(img);
